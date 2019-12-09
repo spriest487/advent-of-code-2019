@@ -1,4 +1,4 @@
-mod intcode;
+pub mod intcode;
 use intcode::Word;
 
 fn input_one(mut code: Vec<Word>, input: Word) -> Vec<Word> {

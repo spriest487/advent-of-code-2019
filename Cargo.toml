@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 digits_iterator = "0.1.0"
+itertools = "0.8.2"
 
 [[bin]]
 name = "day1"
@@ -32,3 +33,7 @@ path = "src/day5.rs"
 [[bin]]
 name = "day6"
 path = "src/day6.rs"
+
+[[bin]]
+name = "day7"
+path = "src/day7.rs"
