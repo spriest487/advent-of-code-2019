@@ -3,13 +3,17 @@
 use std::ops::{AddAssign, Sub, Add, Mul, SubAssign, MulAssign};
 use std::fmt;
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct Point {
     pub x: i64,
     pub y: i64,
 }
 
 impl Point {
+    pub fn new(x: i64, y: i64) -> Self {
+        Self { x, y }
+    }
+
     pub fn zero() -> Self {
         Self { x: 0, y: 0 }
     }

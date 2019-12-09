@@ -52,17 +52,17 @@ impl Segment {
 
         let dist_to = i64::min(
             (self.origin - other.end()).manhattan_len(),
-            (self.origin - other.origin).manhattan_len()
+            (self.origin - other.origin).manhattan_len(),
         );
 
-        if dist_to > self.dist {
+        if dist_to > self.dist + 1 {
             return None;
         }
 
-        for offset in 1..self.dist {
+        for offset in 1..=self.dist {
             let point = self.origin + self.dir.unit() * offset;
 
-            for other_offset in 0..other.dist {
+            for other_offset in 1..=other.dist {
                 if point == other.origin + other.dir.unit() * other_offset {
                     return Some(point);
                 }
@@ -92,33 +92,33 @@ fn read_path(path_str: &str) -> Vec<Segment> {
     path
 }
 
-fn closest_intersection(a: &[Segment], b: &[Segment]) -> Point {
-    let mut result = None;
+fn find_time(wire: &[Segment], point: &Point) -> usize {
+    let points: Vec<_> = wire.iter()
+        .flat_map(|seg| {
+            (1..=seg.dist).map(move |offset| {
+                seg.origin + seg.dir.unit() * offset
+            })
+        })
+        .collect();
 
-    let intersections = a.iter()
-        .flat_map(move |seg| b.iter()
-            .filter_map(move |b_seg| seg.intersection(b_seg)));
+    points.iter().position(|p| *p == *point).unwrap() + 1
+}
 
-    for intersection in intersections {
-        if intersection == Point::zero() {
-            continue;
-        }
+fn intersection_closest_by<V: Ord, F: Fn(&Point) -> V>(
+    a: &[Segment],
+    b: &[Segment],
+    f: F
+) -> (Point, V) {
+    let intersections = a
+        .iter()
+        .flat_map(move |seg| {
+            b.iter().filter_map(move |b_seg| seg.intersection(b_seg))
+        });
 
-        match result {
-            None => {
-                result = Some(intersection);
-            }
-            Some(old) => {
-                let old_dist = Point::zero().manhattan_dist(&old);
-
-                if Point::zero().manhattan_dist(&intersection) < old_dist {
-                    result = Some(intersection);
-                }
-            }
-        }
-    }
-
-    result.unwrap()
+    intersections
+        .map(|i| (i, f(&i)))
+        .min_by(|(_, val_a), (_, val_b)| val_a.cmp(val_b))
+        .unwrap()
 }
 
 fn main() {
@@ -127,7 +127,14 @@ fn main() {
     let wire1 = read_path(lines.next().unwrap());
     let wire2 = read_path(lines.next().unwrap());
 
-    let intersection = closest_intersection(&wire1, &wire2);
-    let dist = Point::zero().manhattan_dist(&intersection);
-    println!("dist to intersection @ {}: {}", intersection, dist);
+    let (intersection, dist) = intersection_closest_by(&wire1, &wire2, |i| {
+        Point::zero().manhattan_dist(i)
+    });
+    println!("closest intersection by manhattan dist @ {}: distance {}", intersection, dist);
+
+    let (intersection, dist) = intersection_closest_by(&wire1, &wire2, |i| {
+        find_time(&wire1, i) + find_time(&wire2, i)
+    });
+
+    println!("closest intersection by time @ {}: time {}", intersection, dist);
 }
