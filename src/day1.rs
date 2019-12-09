@@ -30,5 +30,8 @@ fn main() {
     println!("fuel required: {}", fuel_required);
 
     let fuel_required_full: i64 = modules.iter().map(|mass| fuel_required_full(*mass)).sum();
-    println!("fuel required (including fuel required for fuel): {}", fuel_required_full);
+    println!(
+        "fuel required (including fuel required for fuel): {}",
+        fuel_required_full
+    );
 }

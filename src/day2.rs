@@ -42,15 +42,16 @@ fn exec_command(initial: &[usize], noun: usize, verb: usize) -> usize {
 
 fn main() {
     let input = include_str!("day2.txt");
-    let intcode: Vec<usize> = input.split(",")
-        .map(|int| int.parse().unwrap())
-        .collect();
+    let intcode: Vec<usize> = input.split(",").map(|int| int.parse().unwrap()).collect();
 
     const GRAVITY: usize = 12;
     const RESTORE: usize = 2;
     let gravity_result = exec_command(&intcode, GRAVITY, RESTORE);
 
-    println!("value in position 0 after restoring gravity: {}", gravity_result);
+    println!(
+        "value in position 0 after restoring gravity: {}",
+        gravity_result
+    );
 
     const TARGET_STATE: usize = 19690720;
 
