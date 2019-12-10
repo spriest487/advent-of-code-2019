@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use std::convert::TryInto;
 use digits_iterator;
 use digits_iterator::DigitsExtension;
