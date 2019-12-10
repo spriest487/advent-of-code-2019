@@ -5,7 +5,8 @@ fn input_one(mut code: Vec<Word>, input: Word) -> Vec<Word> {
     let mut in_buf = vec![input];
     let mut out_buf = Vec::new();
 
-    intcode::exec(&mut code, &mut in_buf, &mut out_buf);
+    intcode::exec(&mut code, 0, &mut in_buf, &mut out_buf)
+        .expect("should run until halt");
 
     out_buf
 }
@@ -15,7 +16,7 @@ fn main() {
     assert_eq!(output, [123]);
 
     let mut mul_test_program = intcode::from_str("1002,4,3,4,33");
-    intcode::exec(&mut mul_test_program, &mut Vec::new(), &mut Vec::new());
+    intcode::exec(&mut mul_test_program, 0, &mut Vec::new(), &mut Vec::new());
     assert_eq!(mul_test_program[4], 99);
 
     let input = include_str!("day5.txt");

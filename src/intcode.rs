@@ -4,6 +4,13 @@ use digits_iterator::DigitsExtension;
 
 pub type Word = i64;
 
+#[derive(Debug)]
+pub enum ExecError {
+    InputBlocked { pc: usize },
+}
+
+pub type ExecResult<T> = Result<T, ExecError>;
+
 fn as_addr(word: Word) -> usize {
     match word.try_into() {
         Ok(addr) => addr,
@@ -90,8 +97,7 @@ impl OpCode {
     }
 }
 
-pub fn exec(intcode: &mut [Word], in_buf: &mut Vec<Word>, out_buf: &mut Vec<Word>) {
-    let mut pc = 0;
+pub fn exec(intcode: &mut [Word], mut pc: usize, in_buf: &mut Vec<Word>, out_buf: &mut Vec<Word>) -> ExecResult<()> {
     loop {
         let opcode = OpCode::from(intcode[pc]);
 
@@ -139,9 +145,12 @@ pub fn exec(intcode: &mut [Word], in_buf: &mut Vec<Word>, out_buf: &mut Vec<Word
             }
 
             Op::In => {
+                if in_buf.is_empty() {
+                    return Err(ExecError::InputBlocked { pc });
+                }
+
                 assert_eq!(opcode.param_mode(0), Mode::Pointer);
                 let pos = as_addr(intcode[pc + 1]);
-
                 let in_val = in_buf.remove(0);
                 intcode[pos] = in_val;
 
@@ -176,7 +185,7 @@ pub fn exec(intcode: &mut [Word], in_buf: &mut Vec<Word>, out_buf: &mut Vec<Word
                 pc += 4;
             }
 
-            Op::Hcf => break,
+            Op::Hcf => break Ok(()),
         }
     }
 }

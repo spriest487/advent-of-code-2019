@@ -6,7 +6,8 @@ fn exec_command(initial: &[Word], noun: Word, verb: Word) -> Word {
     code[1] = noun;
     code[2] = verb;
 
-    intcode::exec(&mut code, &mut Vec::new(), &mut Vec::new());
+    intcode::exec(&mut code, 0, &mut Vec::new(), &mut Vec::new())
+        .expect("should run until halt");
 
     code[0]
 }
