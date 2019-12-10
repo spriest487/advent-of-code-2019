@@ -6,7 +6,7 @@ pub type Word = i64;
 
 #[derive(Debug)]
 pub enum ExecError {
-    InputBlocked { pc: usize },
+    InputBlocked,
 }
 
 pub type ExecResult<T> = Result<T, ExecError>;
@@ -15,13 +15,6 @@ fn as_addr(word: Word) -> usize {
     match word.try_into() {
         Ok(addr) => addr,
         Err(..) => panic!("bad address: {}", word),
-    }
-}
-
-fn load(code: &[Word], mode: Mode, val: Word) -> Word {
-    match mode {
-        Mode::Pointer => code[val as usize],
-        Mode::Immediate => val,
     }
 }
 
@@ -36,12 +29,14 @@ enum Op {
     Jnz,
     Lt,
     Eq,
+    Off,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 enum Mode {
     Pointer,
     Immediate,
+    Relative,
 }
 
 struct OpCode {
@@ -70,6 +65,7 @@ impl From<Word> for OpCode {
                 6 => Op::Jz,
                 7 => Op::Lt,
                 8 => Op::Eq,
+                9 => Op::Off,
                 99 => Op::Hcf,
                 _ => panic!("bad op value in opcode {}: {}", word, code),
             }
@@ -80,6 +76,7 @@ impl From<Word> for OpCode {
             param_modes.push(match mode {
                 0 => Mode::Pointer,
                 1 => Mode::Immediate,
+                2 => Mode::Relative,
                 _ => panic!("bad mode digit in opcode {}: {}", word, mode)
             })
         }
@@ -97,99 +94,187 @@ impl OpCode {
     }
 }
 
-pub fn exec(intcode: &mut [Word], mut pc: usize, in_buf: &mut Vec<Word>, out_buf: &mut Vec<Word>) -> ExecResult<()> {
-    loop {
-        let opcode = OpCode::from(intcode[pc]);
-
-        match opcode.op {
-            Op::Add => {
-                let a = load(intcode, opcode.param_mode(0), intcode[pc + 1]);
-                let b = load(intcode, opcode.param_mode(1), intcode[pc + 2]);
-                assert_eq!(opcode.param_mode(2), Mode::Pointer);
-                let out_pos = as_addr(intcode[pc + 3]);
-
-                intcode[out_pos] = a + b;
-                pc += 4;
-            }
-
-            Op::Mul => {
-                let a = load(intcode, opcode.param_mode(0), intcode[pc + 1]);
-                let b = load(intcode, opcode.param_mode(1), intcode[pc + 2]);
-                assert_eq!(opcode.param_mode(2), Mode::Pointer);
-                let out_pos = as_addr(intcode[pc + 3]);
-
-                intcode[out_pos] = a * b;
-                pc += 4;
-            }
-
-            Op::Jnz => {
-                let a = load(intcode, opcode.param_mode(0), intcode[pc + 1]);
-                let b = load(intcode, opcode.param_mode(1), intcode[pc + 2]);
-
-                if a != 0 {
-                    pc = as_addr(b);
-                } else {
-                    pc += 3;
-                }
-            }
-
-            Op::Jz => {
-                let a = load(intcode, opcode.param_mode(0), intcode[pc + 1]);
-                let b = load(intcode, opcode.param_mode(1), intcode[pc + 2]);
-
-                if a == 0 {
-                    pc = as_addr(b);
-                } else {
-                    pc += 3;
-                }
-            }
-
-            Op::In => {
-                if in_buf.is_empty() {
-                    return Err(ExecError::InputBlocked { pc });
-                }
-
-                assert_eq!(opcode.param_mode(0), Mode::Pointer);
-                let pos = as_addr(intcode[pc + 1]);
-                let in_val = in_buf.remove(0);
-                intcode[pos] = in_val;
-
-                pc += 2;
-            }
-
-            Op::Out => {
-                let out_val = load(&intcode, opcode.param_mode(0), intcode[pc + 1]);
-                out_buf.push(out_val);
-                pc += 2;
-            }
-
-            Op::Lt => {
-                let a = load(intcode, opcode.param_mode(0), intcode[pc + 1]);
-                let b = load(intcode, opcode.param_mode(1), intcode[pc + 2]);
-
-                assert_eq!(opcode.param_mode(2), Mode::Pointer);
-                let out_pos = as_addr(intcode[pc + 3]);
-
-                intcode[out_pos] = if a < b { 1 } else { 0 };
-                pc += 4;
-            }
-
-            Op::Eq => {
-                let a = load(intcode, opcode.param_mode(0), intcode[pc + 1]);
-                let b = load(intcode, opcode.param_mode(1), intcode[pc + 2]);
-
-                assert_eq!(opcode.param_mode(2), Mode::Pointer);
-                let out_pos = as_addr(intcode[pc + 3]);
-
-                intcode[out_pos] = if a == b { 1 } else { 0 };
-                pc += 4;
-            }
-
-            Op::Hcf => break Ok(()),
-        }
-    }
-}
-
 pub fn from_str(input: &str) -> Vec<Word> {
     input.split(",").map(|int| int.parse().unwrap()).collect()
+}
+
+pub struct Computer {
+    pub in_buf: Vec<Word>,
+    pub out_buf: Vec<Word>,
+
+    mem: Vec<Word>,
+
+    pc: usize,
+    rel_offset: Word,
+}
+
+impl Computer {
+    pub fn new(code: Vec<Word>) -> Self {
+        Self {
+            in_buf: Vec::new(),
+            out_buf: Vec::new(),
+
+            mem: code,
+
+            pc: 0,
+            rel_offset: 0,
+        }
+    }
+
+    fn load(&mut self, mode: Mode, val: Word) -> Word {
+        match mode {
+            Mode::Pointer => self.mem_load(as_addr(val)),
+            Mode::Immediate => val,
+            Mode::Relative => self.mem_load(as_addr(val + self.rel_offset)),
+        }
+    }
+
+    fn mem_load(&mut self, addr: usize) -> Word {
+        self.mem.get(addr).cloned().unwrap_or(0)
+    }
+
+    fn mem_store(&mut self, addr: usize, val: Word) {
+        // todo: pages
+        while self.mem.len() < addr {
+            self.mem.resize(self.mem.len() * 2, 0);
+        }
+
+        self.mem[addr] = val;
+    }
+
+    pub fn code_get(&self, at: usize) -> Option<Word> {
+        self.mem.get(at).cloned()
+    }
+
+    fn get_ptr(&self, mode: Mode, val: Word) -> usize {
+        as_addr(match mode {
+            Mode::Pointer => val,
+            Mode::Relative => val + self.rel_offset,
+            Mode::Immediate => panic!("in instruction doesn't allow immediate arg"),
+        })
+    }
+
+    pub fn run(&mut self) -> ExecResult<()> {
+        loop {
+            let opcode = OpCode::from(self.mem[self.pc]);
+
+            match opcode.op {
+                Op::Add => {
+                    let a_pos = self.mem_load(self.pc + 1);
+                    let a = self.load(opcode.param_mode(0), a_pos);
+
+                    let b_pos = self.mem_load(self.pc + 2);
+                    let b = self.load(opcode.param_mode(1), b_pos);
+
+                    let out = self.mem_load(self.pc + 3);
+                    let out_pos = self.get_ptr(opcode.param_mode(2), out);
+
+                    self.mem_store(out_pos, a + b);
+                    self.pc += 4;
+                }
+
+                Op::Mul => {
+                    let a_pos = self.mem_load(self.pc + 1);
+                    let a = self.load(opcode.param_mode(0), a_pos);
+
+                    let b_pos = self.mem_load(self.pc + 2);
+                    let b = self.load(opcode.param_mode(1), b_pos);
+
+                    let out = self.mem_load(self.pc + 3);
+                    let out_pos = self.get_ptr(opcode.param_mode(2), out);
+
+                    self.mem_store(out_pos, a * b);
+                    self.pc += 4;
+                }
+
+                Op::Jnz => {
+                    let a_pos = self.mem_load(self.pc + 1);
+                    let a = self.load(opcode.param_mode(0), a_pos);
+
+                    let b_pos = self.mem_load(self.pc + 2);
+                    let b = self.load(opcode.param_mode(1), b_pos);
+
+                    if a != 0 {
+                        self.pc = as_addr(b);
+                    } else {
+                        self.pc += 3;
+                    }
+                }
+
+                Op::Jz => {
+                    let a_pos = self.mem_load(self.pc + 1);
+                    let a = self.load(opcode.param_mode(0), a_pos);
+
+                    let b_pos = self.mem_load(self.pc + 2);
+                    let b = self.load(opcode.param_mode(1), b_pos);
+
+                    if a == 0 {
+                        self.pc = as_addr(b);
+                    } else {
+                        self.pc += 3;
+                    }
+                }
+
+                Op::In => {
+                    if self.in_buf.is_empty() {
+                        return Err(ExecError::InputBlocked);
+                    }
+
+                    let at = self.mem_load(self.pc + 1);
+                    let at_pos = self.get_ptr(opcode.param_mode(0), at);
+
+                    let in_val = self.in_buf.remove(0);
+                    self.mem_store(at_pos, in_val);
+
+                    self.pc += 2;
+                }
+
+                Op::Out => {
+                    let val_pos = self.mem_load(self.pc + 1);
+                    let val = self.load(opcode.param_mode(0), val_pos);
+
+                    self.out_buf.push(val);
+                    self.pc += 2;
+                }
+
+                Op::Lt => {
+                    let a_pos = self.mem_load(self.pc + 1);
+                    let a = self.load(opcode.param_mode(0), a_pos);
+
+                    let b_pos = self.mem_load(self.pc + 2);
+                    let b = self.load(opcode.param_mode(1), b_pos);
+
+                    let out = self.mem_load(self.pc + 3);
+                    let out_pos = self.get_ptr(opcode.param_mode(2), out);
+
+                    self.mem_store(out_pos, if a < b { 1 } else { 0 });
+                    self.pc += 4;
+                }
+
+                Op::Eq => {
+                    let a_pos = self.mem_load(self.pc + 1);
+                    let a = self.load(opcode.param_mode(0), a_pos);
+
+                    let b_pos = self.mem_load(self.pc + 2);
+                    let b = self.load(opcode.param_mode(1), b_pos);
+
+                    let out = self.mem_load(self.pc + 3);
+                    let out_pos = self.get_ptr(opcode.param_mode(2), out);
+
+                    self.mem_store(out_pos, if a == b { 1 } else { 0 });
+                    self.pc += 4;
+                }
+
+                Op::Off => {
+                    let a_pos = self.mem_load(self.pc + 1);
+                    let a = self.load(opcode.param_mode(0), a_pos);
+
+                    self.rel_offset += a;
+                    self.pc += 2;
+                }
+
+                Op::Hcf => break Ok(()),
+            }
+        }
+    }
 }

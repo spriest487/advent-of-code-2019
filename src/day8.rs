@@ -51,7 +51,7 @@ fn decode_image(data: &[u32], w: usize, h: usize) -> Vec<u32> {
                 output[off] = match (src, dest) {
                     (CLEAR, _) => dest,
                     (_, CLEAR) => src,
-                    (color, _) => src,
+                    _ => src,
                 };
             }
         }

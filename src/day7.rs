@@ -1,38 +1,21 @@
 use itertools::*;
 mod intcode;
-use intcode::{Word, ExecError};
+use intcode::{Word, ExecError, Computer};
 
-struct Amplifier {
-    in_buf: Vec<Word>,
-    out_buf: Vec<Word>,
-
-    code: Vec<Word>,
-    pc: usize,
+fn new_amp(code: Vec<Word>, setting: Word) -> Computer {
+    let mut computer = Computer::new(code);
+    computer.in_buf.push(setting);
+    computer
 }
 
-impl Amplifier {
-    fn new(code: Vec<Word>, setting: Word) -> Self {
-        Self {
-            in_buf: vec![setting],
-            out_buf: Vec::new(),
+fn run_amp(amp: &mut Computer) -> Option<Word> {
+    match amp.run() {
+        Err(ExecError::InputBlocked) => None,
 
-            code,
-            pc: 0,
-        }
-    }
-
-    fn run(&mut self) -> Option<Word> {
-        match intcode::exec(&mut self.code, self.pc, &mut self.in_buf, &mut self.out_buf) {
-            Err(ExecError::InputBlocked { pc }) => {
-                self.pc = pc;
-                None
-            }
-
-            Ok(()) => {
-                assert_eq!(self.out_buf.len(), 1);
-                Some(self.out_buf[0])
-            },
-        }
+        Ok(()) => {
+            assert_eq!(amp.out_buf.len(), 1);
+            Some(amp.out_buf[0])
+        },
     }
 }
 
@@ -43,13 +26,13 @@ fn main() {
     let input = include_str!("day7.txt");
     let code = intcode::from_str(input);
 
-    fn create_amps(code: &[Word], setting: &[Word]) -> [Amplifier; 5] {
+    fn create_amps(code: &[Word], setting: &[Word]) -> [Computer; 5] {
         [
-            Amplifier::new(code.to_vec(), setting[0]),
-            Amplifier::new(code.to_vec(), setting[1]),
-            Amplifier::new(code.to_vec(), setting[2]),
-            Amplifier::new(code.to_vec(), setting[3]),
-            Amplifier::new(code.to_vec(), setting[4]),
+            new_amp(code.to_vec(), setting[0]),
+            new_amp(code.to_vec(), setting[1]),
+            new_amp(code.to_vec(), setting[2]),
+            new_amp(code.to_vec(), setting[3]),
+            new_amp(code.to_vec(), setting[4]),
         ]
     }
 
@@ -58,7 +41,7 @@ fn main() {
         amps[0].in_buf.push(0);
 
         for i in 0..5 {
-            let out = amps[i].run().expect("should run until halt in part 1");
+            let out = run_amp(&mut amps[i]).expect("should run until halt in part 1");
 
             if i == amps.len() - 1 {
                 if out > max_output {
@@ -84,7 +67,7 @@ fn main() {
                     continue;
                 }
 
-                let result = amps[i].run();
+                let result = run_amp(&mut amps[i]);
 
                 let next_i = (i + 1) % 5;
                 let out: Vec<_> = amps[i].out_buf.drain(0..).collect();
