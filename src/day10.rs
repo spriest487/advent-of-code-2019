@@ -2,7 +2,7 @@ mod point;
 use point::*;
 use num::integer::gcd;
 use std::collections::{HashSet, HashMap};
-use itertools::Itertools;
+use nalgebra::{self as na};
 
 #[allow(unused)]
 struct Map {
@@ -34,6 +34,77 @@ impl Map {
             asteroids,
         }
     }
+
+    fn contains(&self, point: &Point) -> bool {
+        point.x >= 0
+            && point.x < self.width
+            && point.y >= 0
+            && point.y < self.height
+    }
+
+    fn rays_to_visible(&self, from: &Point) -> HashSet<Point> {
+        let mut rays = HashSet::new();
+        for other in self.asteroids.iter() {
+            if *from == *other {
+                continue;
+            }
+
+            let diff = *other - *from;
+            let gcd = gcd(diff.x, diff.y);
+            let ray = Point::new(diff.x / gcd, diff.y / gcd);
+
+            rays.insert(ray);
+        }
+        rays
+    }
+
+    fn fire_laser(&mut self, from: &Point, times: usize) -> Vec<Point> {
+        let mut vaporized_asteroids = Vec::new();
+        let mut rays = Vec::new();
+
+        'laser: loop {
+            rays.clear();
+            rays.extend(self.rays_to_visible(from).into_iter());
+            rays.sort_by(|a, b| {
+                ray_angle(a).partial_cmp(&ray_angle(b)).unwrap()
+            });
+
+            for ray in &rays {
+                // vaporize the first asteroid this ray intersects
+                let mut next = *from + *ray;
+                'shot: while self.contains(&next) {
+                    if let Some(vaporized_index) = self.asteroids.iter().position(|a| *a == next) {
+                        let asteroid = self.asteroids.remove(vaporized_index);
+                        vaporized_asteroids.push(asteroid);
+
+                        if vaporized_asteroids.len() == times {
+                            break 'laser;
+                        }
+                        break 'shot;
+                    }
+
+                    next += *ray;
+                }
+            }
+        };
+
+        vaporized_asteroids
+    }
+}
+
+fn ray_angle(ray: &Point) -> f64 {
+    let up = na::Vector3::new(0.0, -1.0, 0.0);
+    let plane = na::Vector3::new(0.0, 0.0, 1.0);
+
+    let ray_dir = na::Vector3::new(ray.x as f64, ray.y as f64, 0.0).normalize();
+
+    let mut angle = ray_dir.angle(&up).to_degrees();
+    let normal = up.cross(&ray_dir);
+    if normal.dot(&plane) < 0.0 {
+        angle = 360.0 - angle;
+    }
+
+    angle
 }
 
 fn main() {
@@ -41,12 +112,11 @@ fn main() {
     let map = Map::new(input);
 
     let mut rays = HashMap::new();
-    for pair in map.asteroids.iter().permutations(2) {
-        let diff = *pair[0] - *pair[1];
-        let gcd = gcd(diff.x, diff.y);
-        let ray = Point::new(diff.x / gcd, diff.y / gcd);
-
-        rays.entry(*pair[0]).or_insert_with(HashSet::new).insert(ray);
+    for a in map.asteroids.iter() {
+        let visible = map.rays_to_visible(a);
+        rays.entry(*a)
+            .or_insert_with(HashSet::new)
+            .extend(visible);
     }
 
     // best asteroid is the one that can see most other asteroids
@@ -56,4 +126,12 @@ fn main() {
         .unwrap();
 
     println!("asteroid with most visible ({}): {}", best_asteroid, num_visible);
+
+    let mut map = map;
+
+    let vaporized = map.fire_laser(&best_asteroid, 200);
+    let last_hit = vaporized.last().unwrap();
+    let output_val = last_hit.x * 100 + last_hit.y;
+
+    println!("last hit asteroid after {} shots: {} ({})", vaporized.len(), last_hit, output_val);
 }

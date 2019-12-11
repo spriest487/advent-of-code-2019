@@ -2,11 +2,18 @@
 
 use std::ops::{AddAssign, Sub, Add, Mul, SubAssign, MulAssign};
 use std::fmt;
+use std::collections::HashMap;
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct Point {
     pub x: i64,
     pub y: i64,
+}
+
+impl fmt::Debug for Point {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Point({}, {})", self.x, self.y)
+    }
 }
 
 impl Point {
@@ -92,5 +99,16 @@ impl Mul<i64> for Point {
 impl MulAssign<i64> for Point {
     fn mul_assign(&mut self, rhs: i64) {
         *self = *self * rhs
+    }
+}
+
+pub fn visualize_points<F: Fn(&Point) -> char>(w: i64, h: i64, f: F) {
+    for y in 0..h {
+        for x in 0..w {
+            let point = Point::new(x, y);
+            let vis = f(&point);
+            print!("{}", vis);
+        }
+        println!();
     }
 }

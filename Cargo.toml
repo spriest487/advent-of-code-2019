@@ -10,6 +10,7 @@ edition = "2018"
 digits_iterator = "0.1.0"
 itertools = "0.8.2"
 num = "0.2.0"
+nalgebra = "0.19.0"
 
 [[bin]]
 name = "day1"
