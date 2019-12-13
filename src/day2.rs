@@ -8,7 +8,7 @@ fn exec_command(initial: Vec<Word>, noun: Word, verb: Word) -> Word {
 
     let mut computer = Computer::new(code);
     computer.run().expect("should run until halt");
-    computer.code_get(0).unwrap()
+    computer.mem_load(0)
 }
 
 fn main() {

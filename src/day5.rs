@@ -14,7 +14,7 @@ fn main() {
 
     let mut mul_computer = Computer::new(intcode::from_str("1002,4,3,4,33"));
     mul_computer.run().expect("should run to halt");
-    assert_eq!(mul_computer.code_get(4).unwrap(), 99);
+    assert_eq!(mul_computer.mem_load(4), 99);
 
     let input = include_str!("day5.txt");
     let test_program = intcode::from_str(input);

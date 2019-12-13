@@ -131,21 +131,17 @@ impl Computer {
         }
     }
 
-    fn mem_load(&mut self, addr: usize) -> Word {
+    pub fn mem_load(&mut self, addr: usize) -> Word {
         self.mem.get(addr).cloned().unwrap_or(0)
     }
 
-    fn mem_store(&mut self, addr: usize, val: Word) {
+    pub fn mem_store(&mut self, addr: usize, val: Word) {
         // todo: pages
         while self.mem.len() < addr {
             self.mem.resize(self.mem.len() * 2, 0);
         }
 
         self.mem[addr] = val;
-    }
-
-    pub fn code_get(&self, at: usize) -> Option<Word> {
-        self.mem.get(at).cloned()
     }
 
     fn get_ptr(&self, mode: Mode, val: Word) -> usize {
